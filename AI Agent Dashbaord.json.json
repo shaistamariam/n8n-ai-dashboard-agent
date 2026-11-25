@@ -1,0 +1,271 @@
+{
+  "name": "AI Dashbaord Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "id": "5d024560-d9a4-487f-ac7c-d24b92fa62e1",
+      "name": "When chat message received",
+      "webhookId": "3dbd4eb4-4dfc-430e-95b4-94a154d38794"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are a BI analyst agent. You work with data already loaded into PostgreSQL tables named t_<something>, and you build Metabase dashboards from it.\n\nFirst decide what the user wants:\nA) They ask what data or tables exist: call list_tables ONCE, then answer with the table names. Call no other tool.\nB) They ask a question about the data: use run_sql (SELECT only) and answer. Do not create a dashboard.\nC) They explicitly ask you to create or build a dashboard: follow the dashboard steps below.\n\nDashboard steps (only for C):\n1. If the user names no table, call list_tables and pick the best match.\n2. Call run_sql: SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '<table>'\n3. Run at most 2 more run_sql queries to explore (distinct values of category columns, ranges of numeric columns).\n4. Design 6 to 8 charts using only columns you verified. Do not test each chart separately.\n5. Call create_dashboard ONCE. dashboard_name is a plain string. charts is ONE JSON string like: [{\"title\":\"Employees\",\"display\":\"scalar\",\"sql\":\"SELECT COUNT(*) AS employees FROM t_x\"}]\n6. Reply with the dashboard link and one line per chart. If charts_failed is above 0, say so.\n\nChart rules: PostgreSQL SELECT only. display is one of scalar, bar, line, pie, row, table. scalar = one number. bar/row/pie = one category column then one numeric column, with LIMIT 15. Use line only with a real date column. Column names are lowercase with underscores. Never invent columns.\n\nIf a tool returns an error, retry at most once with corrected input. If it fails again, stop and tell the user the exact error text. Never call the same tool with the same input twice.",
+          "maxIterations": 7
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        240,
+        -288
+      ],
+      "id": "7ae2eab5-bb53-4256-a633-2ad10912ad10",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        128,
+        144
+      ],
+      "id": "8547bc38-d199-4192-83c2-4e173fb122a2",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "EceGjXun46cAUMVj",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        272,
+        32
+      ],
+      "id": "1b83ac45-24a3-481e-ac9f-7706863ee45a",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "description": "Lists the data tables that have been uploaded and are available for dashboards.",
+        "workflowId": {
+          "__rl": true,
+          "value": "waYMPUti4mXpInFR",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/waYMPUti4mXpInFR",
+          "cachedResultName": "Tool: list_tables"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        592,
+        128
+      ],
+      "id": "93a3b9e5-82b7-4afd-aaad-a23ddcaee1e2",
+      "name": "Call 'Tool: list_tables'"
+    },
+    {
+      "parameters": {
+        "description": "Runs ONE read-only PostgreSQL SELECT query and returns up to 50 rows. Use it to look at columns (information_schema.columns) and to test chart queries.",
+        "workflowId": {
+          "__rl": true,
+          "value": "kBkgZuBoHf4hVuIN",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/kBkgZuBoHf4hVuIN",
+          "cachedResultName": "Tool : run_sql"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        656,
+        -16
+      ],
+      "id": "7708a169-d9b8-4553-9bf2-c55ac95617b4",
+      "name": "Call 'Tool : run_sql'"
+    },
+    {
+      "parameters": {
+        "description": "Creates a Metabase dashboard. dashboard_name is a string. charts is a JSON array STRING of objects with title, display and sql.",
+        "workflowId": {
+          "__rl": true,
+          "value": "PocDY6djCs9KrVjZ",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/PocDY6djCs9KrVjZ",
+          "cachedResultName": "Tool: create_dashboard"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "dashboard_name": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('dashboard_name', ``, 'string') }}",
+            "charts": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('charts', ``, 'string') }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "dashboard_name",
+              "displayName": "dashboard_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "charts",
+              "displayName": "charts",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        128
+      ],
+      "id": "a9788060-8fe0-4c9c-bf54-a79e1e7ae92f",
+      "name": "Call 'Tool: create_dashboard'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Tool: list_tables'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Tool : run_sql'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Tool: create_dashboard'": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "da43718a-c9b3-44c7-9e0e-13fab794ac2c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6cfb255688f13dc0a2d105659baf82f5e3158b8ccedf08fb79e45ec6c6baf536"
+  },
+  "nodeGroups": [],
+  "id": "vCBT4lV9QQrScAYU",
+  "tags": []
+}

@@ -1,0 +1,129 @@
+{
+  "name": "Tool : run_sql",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "query"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c3da0b6f-11a4-418c-9188-1c3c731cb0d5",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = String($input.first().json.query || '').trim().replace(/;+\\s*$/, '');\n\nif (!/^(select|with)\\b/i.test(q)) throw new Error('Only SELECT queries are allowed.');\nif (q.includes(';')) throw new Error('Only one statement is allowed.');\nif (/\\b(insert|update|delete|drop|alter|create|grant|truncate|copy|call)\\b/i.test(q) || /\\bpg_\\w+/i.test(q)) {\n  throw new Error('That query contains a blocked keyword. Use a read-only SELECT.');\n}\n\nreturn [{ json: { query: `SELECT * FROM (${q}) AS t LIMIT 50` } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "6054921f-3449-4e46-ba0c-fac118443baa",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.query }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        448,
+        0
+      ],
+      "id": "8c5073f3-6975-49a7-9f29-d36f187fa141",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Jw4AI0Jwlasi7t5N",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nreturn [{ json: { row_count: rows.length, rows } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "88e24578-635b-45fd-a7a9-2c5f9642e778",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "query": "SELECT COUNT(*) AS n FROM t_hr_employee_attrition_cleaned"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4a63f151-7a00-4fa2-a900-86d8596ba1e2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6cfb255688f13dc0a2d105659baf82f5e3158b8ccedf08fb79e45ec6c6baf536"
+  },
+  "nodeGroups": [],
+  "id": "kBkgZuBoHf4hVuIN",
+  "tags": []
+}

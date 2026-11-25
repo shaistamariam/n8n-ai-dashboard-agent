@@ -1,0 +1,140 @@
+{
+  "name": "Upload  CSV",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "1172dada-761e-4565-bf22-93cbfd99a8e7",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const formItem = $('Upload form').first();\nconst form = formItem.json;\nconst key = Object.keys(form).find(k => k.trim().toLowerCase() === 'dashboard name');\nconst typed = key ? String(form[key] || '').trim() : '';\nconst fileBase = String(formItem.binary?.data?.fileName || '').replace(/\\.csv$/i, '');\nconst name = typed || fileBase || 'dataset';\n\nconst rows = $input.all().map(i => i.json);\nif (!rows.length) throw new Error('CSV is empty');\n\nconst table = 't_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');\n\nconst clean = c => c.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'col';\nconst cols = Object.keys(rows[0]);\nconst seen = {};\nconst names = cols.map(c => {\n  const n = clean(c);\n  seen[n] = (seen[n] || 0) + 1;\n  return seen[n] > 1 ? `${n}_${seen[n]}` : n;\n});\n\nconst typeOf = c => {\n  const vals = rows.map(r => r[c]).filter(v => v !== '' && v != null);\n  if (!vals.length) return 'TEXT';\n  if (vals.every(v => /^-?(0|[1-9]\\d*)$/.test(String(v)))) return 'BIGINT';\n  if (vals.every(v => !isNaN(Number(v)))) return 'DOUBLE PRECISION';\n  if (vals.every(v => /^\\d{4}-\\d{2}-\\d{2}/.test(String(v)) && !isNaN(Date.parse(v)))) return 'TIMESTAMP';\n  return 'TEXT';\n};\nconst types = cols.map(typeOf);\n\nconst lit = v => (v === '' || v == null) ? 'NULL' : `'${String(v).replace(/'/g, \"''\")}'`;\nconst out = [\n  { json: { sql: `DROP TABLE IF EXISTS ${table}`, table, rowCount: rows.length } },\n  { json: { sql: `CREATE TABLE ${table} (${names.map((n, i) => `\"${n}\" ${types[i]}`).join(', ')})` } },\n];\nfor (let i = 0; i < rows.length; i += 500) {\n  const values = rows.slice(i, i + 500)\n    .map(r => '(' + cols.map(c => lit(r[c])).join(',') + ')').join(',');\n  out.push({ json: { sql: `INSERT INTO ${table} VALUES ${values}` } });\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "85f53f8d-cd6f-4848-b6d3-3b7e8cc74ab4",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.sql }}",
+        "options": {
+          "queryBatching": "independently"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.8,
+      "position": [
+        672,
+        0
+      ],
+      "id": "edcdb34d-89ef-48ac-82a3-1881a71c258e",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "Jw4AI0Jwlasi7t5N",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "formTitle": "Upload CSV ",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "data",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "dashboard ",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "66807422-a32e-4596-ad2b-f78c63ea54d6",
+      "name": "Upload form",
+      "webhookId": "731acc53-d0fd-4ec5-8da3-6a5bb169535d"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload form": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "42b66e25-8e7d-4327-bad3-b367dbb7dd4d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "6cfb255688f13dc0a2d105659baf82f5e3158b8ccedf08fb79e45ec6c6baf536"
+  },
+  "nodeGroups": [],
+  "id": "tkSj3zVrpY0DqWpm",
+  "tags": []
+}

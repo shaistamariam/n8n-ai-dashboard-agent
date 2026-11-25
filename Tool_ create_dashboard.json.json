@@ -1,0 +1,226 @@
+{
+  "name": "Tool: create_dashboard",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/dashboard",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.dashboard_name }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "c22459fb-5e4d-4617-a610-231df7707a89",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HndUJVxXbungqkne",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/api/card",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.title, display: $json.display, visualization_settings: {}, dataset_query: { database: $json.dbId, type: 'native', native: { query: $json.sql } } }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        0
+      ],
+      "id": "54136027-c0e0-4a7f-8fcb-e8b5c2c87fed",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HndUJVxXbungqkne",
+          "name": "Header Auth account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=http://host.docker.internal:3000/api/dashboard/{{ $json.dashId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        992,
+        -112
+      ],
+      "id": "0d0d317f-a9af-4cc7-b129-49025dff1965",
+      "name": "HTTP Request2",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HndUJVxXbungqkne",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "dashboard_name"
+            },
+            {
+              "name": "charts"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "56e8f653-f402-48c2-ac79-123b3ee6f331",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "jsCode": "const DB_ID = 2;\n\nconst start = $('Start').first().json;\nconst dashId = $input.first().json.id;\n\nlet charts = start.charts;\nif (typeof charts === 'string') charts = JSON.parse(charts.replace(/```json|```/g, '').trim());\n\nconst allowed = ['scalar', 'bar', 'line', 'pie', 'row', 'table', 'area'];\nconst out = [];\nfor (const c of charts) {\n  const sql = String(c.sql || '').trim().replace(/;+\\s*$/, '');\n  if (!/^(select|with)\\b/i.test(sql) || sql.includes(';')) continue;\n  if (/\\b(insert|update|delete|drop|alter|create|grant|truncate|copy|call)\\b/i.test(sql)) continue;\n  out.push({ json: {\n    dashId, dbId: DB_ID, sql,\n    title: String(c.title || 'Chart'),\n    display: allowed.includes(c.display) ? c.display : 'table',\n  } });\n}\nif (!out.length) throw new Error('No valid charts were provided.');\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "06385a05-e71f-45eb-adde-ac249c540b1e",
+      "name": "Split charts"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst dashId = $('Split charts').first().json.dashId;\nconst good = items.filter(c => c.id);\n\nconst dashcards = good.map((c, i) => ({\n  id: -(i + 1), card_id: c.id,\n  row: Math.floor(i / 2) * 6, col: (i % 2) * 12,\n  size_x: 12, size_y: 6,\n  parameter_mappings: [], visualization_settings: {},\n}));\n\nreturn [{ json: { dashId, body: { dashcards }, failed: items.length - good.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        0
+      ],
+      "id": "38296dfc-f03d-44c4-b540-b6284a5c0511",
+      "name": "Layout"
+    },
+    {
+      "parameters": {
+        "jsCode": "const l = $('Layout').first().json;\nreturn [{ json: {\n  status: 'created',\n  url: `http://localhost:3000/dashboard/${l.dashId}`,\n  charts_added: l.body.dashcards.length,\n  charts_failed: l.failed,\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        128
+      ],
+      "id": "cc907dde-a643-43e0-bf74-c3563ec2fec5",
+      "name": "Result"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Split charts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Layout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split charts": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Layout": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "db80abd4-a1e2-42d2-a9da-6416ffdd7179",
+  "meta": {
+    "instanceId": "6cfb255688f13dc0a2d105659baf82f5e3158b8ccedf08fb79e45ec6c6baf536"
+  },
+  "nodeGroups": [],
+  "id": "PocDY6djCs9KrVjZ",
+  "tags": []
+}
